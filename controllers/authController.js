@@ -30,26 +30,20 @@ const login = async (req, res, next) => {
     res
       .cookie("token", token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
+        secure: true,           // sameSite: "none" ke sath secure hamesha true hona chahiye
+        sameSite: "none",       // "lax" se "none" — cross-site cookie ke liye zaroori
         maxAge: 24 * 60 * 60 * 1000,
       })
       .status(200)
       .json(
-        new ApiResponse(
-          200,
-          true,
-          "Login successful",
-          {
-            user: {
-              id: user._id,
-              name: user.name,
-              email: user.email,
-              role: user.role,
-            },
-            token, // Token optional for fallback
-          }
-        )
+        new ApiResponse(200, true, "Login successful", {
+          user: {
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+          },
+        })
       );
   } catch (error) {
     next(error);
@@ -59,11 +53,10 @@ const login = async (req, res, next) => {
 const logout = (req, res) => {
   res.clearCookie("token", {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    secure: true,
+    sameSite: "none",   // yahan bhi match hona chahiye, warna clearCookie kaam nahi karega
   });
 
-  // ✅ Fixed: Added return response
   return res.status(200).json(
     new ApiResponse(200, true, "Logged out successfully", null)
   );
