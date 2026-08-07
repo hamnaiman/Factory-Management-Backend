@@ -1,5 +1,5 @@
 const SaleService = require("../services/saleService");
-const ApiResponse = require("../utils/ApiResponse");
+const ApiResponse = require("../utils/apiRespnse");
 
 /**
  * ============================================================
