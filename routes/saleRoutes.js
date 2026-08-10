@@ -1,40 +1,69 @@
 const express = require("express");
 const router = express.Router();
 
-const authMiddleware = require("../middleware/authMiddleware");
-const SaleController = require("../controllers/saleController");
+const protect = require("../middleware/authMiddleware");
 
-// All Sale routes are protected by authentication
-router.use(authMiddleware);
+const {
+    createSale,
+    getSales,
+    getSalesTotal,
+    getSaleById,
+    updateSale,
+    cancelSale,
+    getInvoice,
+} = require("../controllers/saleController");
 
-/**
- * ============================================================
- * WRITE OPERATIONS
- * ============================================================
- */
+// ============================================================
+// SALES
+// ============================================================
 
-// Create Sale
-router.post("/", (req, res, next) => SaleController.createSale(req, res, next));
+// Total sales
+router.get(
+    "/total",
+    protect,
+    getSalesTotal
+);
 
-// Update Sale
-router.put("/:id", (req, res, next) => SaleController.updateSale(req, res, next));
+// Get all sales
+router.get(
+    "/",
+    protect,
+    getSales
+);
 
-// Cancel Sale (Soft Delete)
-router.delete("/:id", (req, res, next) => SaleController.cancelSale(req, res, next));
+// Create sale
+router.post(
+    "/",
+    protect,
+    createSale
+);
 
-/**
- * ============================================================
- * READ OPERATIONS
- * ============================================================
- */
+// Get single sale
+router.get(
+    "/:id",
+    protect,
+    getSaleById
+);
 
-// Get All Sales (with pagination/filtering if applicable)
-router.get("/", (req, res, next) => SaleController.getSales(req, res, next));
+// Update sale
+router.put(
+    "/:id",
+    protect,
+    updateSale
+);
 
-// Get Sale By ID
-router.get("/:id", (req, res, next) => SaleController.getSaleById(req, res, next));
+// Cancel sale
+router.delete(
+    "/:id",
+    protect,
+    cancelSale
+);
 
-// Get Printable Invoice Data
-router.get("/:id/invoice", (req, res, next) => SaleController.getInvoice(req, res, next));
+// Invoice
+router.get(
+    "/:id/invoice",
+    protect,
+    getInvoice
+);
 
 module.exports = router;

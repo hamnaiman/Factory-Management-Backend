@@ -7,18 +7,75 @@ const {
   createPayment,
   getAllPayments,
   getPaymentsByWorker,
+  getWorkerPaymentSummaryController,
   editPayment,
   removePayment,
 } = require("../controllers/paymentController");
 
-router.get("/", protect, getAllPayments);
+// ============================================================
+// WORKER PAYMENT SUMMARY
+// GET /api/payments/worker/:id/summary
+// ============================================================
 
-router.post("/", protect, createPayment);
+router.get(
+  "/worker/:id/summary",
+  protect,
+  getWorkerPaymentSummaryController
+);
 
-router.get("/worker/:id", protect, getPaymentsByWorker);
+// ============================================================
+// GET ALL PAYMENTS
+// GET /api/payments
+// ============================================================
 
-router.put("/:id", protect, editPayment);
+router.get(
+  "/",
+  protect,
+  getAllPayments
+);
 
-router.delete("/:id", protect, removePayment);
+// ============================================================
+// CREATE PAYMENT
+// POST /api/payments
+// ============================================================
+
+router.post(
+  "/",
+  protect,
+  createPayment
+);
+
+// ============================================================
+// WORKER PAYMENT HISTORY
+// GET /api/payments/worker/:id
+// ============================================================
+
+router.get(
+  "/worker/:id",
+  protect,
+  getPaymentsByWorker
+);
+
+// ============================================================
+// UPDATE PAYMENT
+// PUT /api/payments/:id
+// ============================================================
+
+router.put(
+  "/:id",
+  protect,
+  editPayment
+);
+
+// ============================================================
+// DELETE PAYMENT
+// DELETE /api/payments/:id
+// ============================================================
+
+router.delete(
+  "/:id",
+  protect,
+  removePayment
+);
 
 module.exports = router;

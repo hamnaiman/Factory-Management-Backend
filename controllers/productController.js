@@ -8,10 +8,10 @@ const {
 
 const ApiResponse = require("../utils/apiResponse");
 
-// Get All Products
+// GET /api/products
 const getAllProducts = async (req, res, next) => {
   try {
-    const products = await getProducts();
+    const products = await getProducts(req.query);
 
     res.status(200).json(
       new ApiResponse(
@@ -26,13 +26,13 @@ const getAllProducts = async (req, res, next) => {
   }
 };
 
-// Add Product
+// POST /api/products
 const createProduct = async (req, res, next) => {
   try {
     const product = await addProduct(
-  req.body,
-  req.user._id
-);
+      req.body,
+      req.user._id
+    );
 
     res.status(201).json(
       new ApiResponse(
@@ -47,7 +47,7 @@ const createProduct = async (req, res, next) => {
   }
 };
 
-// Update Product
+// PUT /api/products/:id
 const editProduct = async (req, res, next) => {
   try {
     const product = await updateProduct(
@@ -68,47 +68,25 @@ const editProduct = async (req, res, next) => {
   }
 };
 
-// Delete Product
+// DELETE /api/products/:id
 const removeProduct = async (req, res, next) => {
-  console.log("DELETE REQUEST:", req.params.id);
-
   try {
-    await deleteProduct(req.params.id);
-
-    console.log("DELETE SUCCESS");
+    const product = await deleteProduct(req.params.id);
 
     res.status(200).json(
       new ApiResponse(
         200,
         true,
-        "Product deleted successfully",
-        null
-      )
-    );
-  } catch (error) {
-    console.error("DELETE ERROR:", error);
-    next(error);
-  }
-};
-
-// Search Products
-const searchProducts = async (req, res, next) => {
-  try {
-    const products = await getProducts(req.query);
-
-    res.status(200).json(
-      new ApiResponse(
-        200,
-        true,
-        "Products fetched successfully",
-        products
+        "Product deactivated successfully",
+        product
       )
     );
   } catch (error) {
     next(error);
   }
 };
-//restore Product
+
+// PATCH /api/products/:id/restore
 const restoreProduct = async (req, res, next) => {
   try {
     const product = await restoreProductService(req.params.id);
@@ -130,7 +108,6 @@ module.exports = {
   getAllProducts,
   createProduct,
   editProduct,
-  restoreProduct,
   removeProduct,
-  searchProducts,
+  restoreProduct,
 };

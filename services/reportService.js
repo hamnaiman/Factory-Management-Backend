@@ -1,10 +1,4 @@
-// server/services/reportService.js
-//
-// Reports are strictly READ-ONLY. Nothing here ever mutates Product,
-// StockMovement, Sale, Production, Labour, Attendance, or Payment — it only
-// queries/aggregates them. Where a service already exposes the right data
-// (Stock, Production, Client Ledger) we call that service instead of
-// re-querying the collection ourselves.
+
 
 const mongoose = require("mongoose");
 
@@ -383,55 +377,133 @@ class ReportService {
   // ============================================================
   // 21. Monthly Attendance Report
   // ============================================================
-  async getMonthlyAttendanceReport({ month, year, worker } = {}) {
-    const now = new Date();
-    const targetMonth = month ? Number(month) - 1 : now.getMonth();
-    const targetYear = year ? Number(year) : now.getFullYear();
+  // async getMonthlyAttendanceReport({ month, year, worker } = {}) {
+  //   const now = new Date();
+  //   const targetMonth = month ? Number(month) - 1 : now.getMonth();
+  //   const targetYear = year ? Number(year) : now.getFullYear();
 
-    const start = new Date(targetYear, targetMonth, 1);
-    const end = new Date(targetYear, targetMonth + 1, 0, 23, 59, 59, 999);
+  //   const start = new Date(targetYear, targetMonth, 1);
+  //   const end = new Date(targetYear, targetMonth + 1, 0, 23, 59, 59, 999);
 
-    const match = { date: { $gte: start, $lte: end } };
-    if (worker) match.worker = toObjectId(worker);
+  //   const match = { date: { $gte: start, $lte: end } };
+  //   if (worker) match.worker = toObjectId(worker);
 
-    const rows = await Attendance.aggregate([
-      { $match: match },
-      {
-        $group: {
-          _id: { worker: "$worker", status: "$status" },
-          count: { $sum: 1 },
-        },
-      },
-    ]);
+  //   const rows = await Attendance.aggregate([
+  //     { $match: match },
+  //     {
+  //       $group: {
+  //         _id: { worker: "$worker", status: "$status" },
+  //         count: { $sum: 1 },
+  //       },
+  //     },
+  //   ]);
 
-    const summaryMap = {};
-    for (const row of rows) {
-      const workerId = row._id.worker.toString();
-      if (!summaryMap[workerId]) {
-        summaryMap[workerId] = { present: 0, absent: 0, leave: 0 };
-      }
-      summaryMap[workerId][row._id.status] = row.count;
-    }
+  //   const summaryMap = {};
+  //   for (const row of rows) {
+  //     const workerId = row._id.worker.toString();
+  //     if (!summaryMap[workerId]) {
+  //       summaryMap[workerId] = { present: 0, absent: 0, leave: 0 };
+  //     }
+  //     summaryMap[workerId][row._id.status] = row.count;
+  //   }
 
-    const workerIds = Object.keys(summaryMap);
-    const labourers = await Labour.find({ _id: { $in: workerIds } }).select(
-      "name phone department dailyWage"
-    );
+  //   const workerIds = Object.keys(summaryMap);
+  //   const labourers = await Labour.find({ _id: { $in: workerIds } }).select(
+  //     "name phone department dailyWage"
+  //   );
 
-    return labourers.map((w) => {
-      const counts = summaryMap[w._id.toString()] || { present: 0, absent: 0, leave: 0 };
-      return {
-        workerId: w._id,
-        name: w.name,
-        department: w.department,
-        presentDays: counts.present,
-        absentDays: counts.absent,
-        leaveDays: counts.leave,
-        totalMarkedDays: counts.present + counts.absent + counts.leave,
-      };
-    });
+  //   return labourers.map((w) => {
+  //     const counts = summaryMap[w._id.toString()] || { present: 0, absent: 0, leave: 0 };
+  //     return {
+  //       workerId: w._id,
+  //       name: w.name,
+  //       department: w.department,
+  //       presentDays: counts.present,
+  //       absentDays: counts.absent,
+  //       leaveDays: counts.leave,
+  //       totalMarkedDays: counts.present + counts.absent + counts.leave,
+  //     };
+  //   });
+  // }
+// ============================================================
+// 21. Monthly Attendance Report
+// Worker + Month + Year
+// Returns DAILY attendance records
+// ============================================================
+async getMonthlyAttendanceReport({
+  month,
+  year,
+  worker,
+} = {}) {
+  const now = new Date();
+
+  const targetMonth = month
+    ? Number(month) - 1
+    : now.getMonth();
+
+  const targetYear = year
+    ? Number(year)
+    : now.getFullYear();
+
+  const start = new Date(
+    targetYear,
+    targetMonth,
+    1,
+    0,
+    0,
+    0,
+    0
+  );
+
+  const end = new Date(
+    targetYear,
+    targetMonth + 1,
+    0,
+    23,
+    59,
+    59,
+    999
+  );
+
+  const match = {
+    date: {
+      $gte: start,
+      $lte: end,
+    },
+  };
+
+  // Worker filter
+  if (worker) {
+    match.worker = toObjectId(worker);
   }
 
+  const records = await Attendance.find(match)
+    .populate(
+      "worker",
+      "name department dailyWage"
+    )
+    .sort({
+      date: 1,
+    });
+
+  return records.map((record) => {
+    const attendanceDate =
+      new Date(record.date);
+
+    return {
+      date: attendanceDate,
+
+      day: attendanceDate.toLocaleDateString(
+        "en-US",
+        {
+          weekday: "long",
+        }
+      ),
+
+      status: record.status,
+    };
+  });
+}
   // ============================================================
   // 22. Labour Wage Report
   // ============================================================

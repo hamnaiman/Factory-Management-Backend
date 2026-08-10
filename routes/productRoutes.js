@@ -7,30 +7,28 @@ const protect = require("../middleware/authMiddleware");
 const {
   getAllProducts,
   createProduct,
-  restoreProduct,
   editProduct,
   removeProduct,
-  searchProducts,
+  restoreProduct,
 } = require("../controllers/productController");
 
-// Get All Products
+// ============================================================
+// PRODUCT ROUTES
+// ============================================================
+
+// Get all products
 router.get("/", protect, getAllProducts);
 
-router.get("/search", protect, searchProducts);
-
-// Add Product
+// Create product
 router.post("/", protect, createProduct);
 
-// Update Product
+// Update product
 router.put("/:id", protect, editProduct);
 
-router.patch(
-  "/:id/restore",
-  protect,
-  restoreProduct
-);
-
-// Delete Product
+// Deactivate product
 router.delete("/:id", protect, removeProduct);
+
+// Restore product
+router.patch("/:id/restore", protect, restoreProduct);
 
 module.exports = router;

@@ -1,22 +1,22 @@
+
 const {
-  addPayment,
-  getPayments,
-  getWorkerPayments,
-  updatePayment,
-  deletePayment,
-  getWorkerPaymentSummary,
-} = require("../services/paymentService");
+  addExpense,
+  getExpenses,
+  getExpenseById,
+  updateExpense,
+  deleteExpense,
+  getExpenseTotal,
+} = require("../services/expenseService");
 
 const ApiResponse = require("../utils/apiResponse");
 
-
 // ============================================================
-// CREATE PAYMENT
+// CREATE
 // ============================================================
 
-const createPayment = async (req, res, next) => {
+const createExpense = async (req, res, next) => {
   try {
-    const payment = await addPayment(
+    const expense = await addExpense(
       req.body,
       req.user._id
     );
@@ -25,8 +25,8 @@ const createPayment = async (req, res, next) => {
       new ApiResponse(
         201,
         true,
-        "Payment added successfully",
-        payment
+        "Expense added successfully",
+        expense
       )
     );
   } catch (error) {
@@ -34,21 +34,20 @@ const createPayment = async (req, res, next) => {
   }
 };
 
-
 // ============================================================
-// GET ALL PAYMENTS
+// GET ALL
 // ============================================================
 
-const getAllPayments = async (req, res, next) => {
+const getAllExpenses = async (req, res, next) => {
   try {
-    const payments = await getPayments();
+    const expenses = await getExpenses(req.query);
 
     res.status(200).json(
       new ApiResponse(
         200,
         true,
-        "Payments fetched successfully",
-        payments
+        "Expenses fetched successfully",
+        expenses
       )
     );
   } catch (error) {
@@ -56,14 +55,13 @@ const getAllPayments = async (req, res, next) => {
   }
 };
 
-
 // ============================================================
-// GET WORKER PAYMENT HISTORY
+// GET BY ID
 // ============================================================
 
-const getPaymentsByWorker = async (req, res, next) => {
+const getSingleExpense = async (req, res, next) => {
   try {
-    const payments = await getWorkerPayments(
+    const expense = await getExpenseById(
       req.params.id
     );
 
@@ -71,8 +69,8 @@ const getPaymentsByWorker = async (req, res, next) => {
       new ApiResponse(
         200,
         true,
-        "Worker payment history fetched successfully",
-        payments
+        "Expense fetched successfully",
+        expense
       )
     );
   } catch (error) {
@@ -80,42 +78,13 @@ const getPaymentsByWorker = async (req, res, next) => {
   }
 };
 
-
 // ============================================================
-// GET WORKER PAYMENT SUMMARY
+// UPDATE
 // ============================================================
 
-const getWorkerPaymentSummaryController = async (
-  req,
-  res,
-  next
-) => {
+const editExpense = async (req, res, next) => {
   try {
-    const summary = await getWorkerPaymentSummary(
-      req.params.id
-    );
-
-    res.status(200).json(
-      new ApiResponse(
-        200,
-        true,
-        "Worker payment summary fetched successfully",
-        summary
-      )
-    );
-  } catch (error) {
-    next(error);
-  }
-};
-
-
-// ============================================================
-// UPDATE PAYMENT
-// ============================================================
-
-const editPayment = async (req, res, next) => {
-  try {
-    const payment = await updatePayment(
+    const expense = await updateExpense(
       req.params.id,
       req.body
     );
@@ -124,8 +93,8 @@ const editPayment = async (req, res, next) => {
       new ApiResponse(
         200,
         true,
-        "Payment updated successfully",
-        payment
+        "Expense updated successfully",
+        expense
       )
     );
   } catch (error) {
@@ -133,20 +102,19 @@ const editPayment = async (req, res, next) => {
   }
 };
 
-
 // ============================================================
-// DELETE PAYMENT
+// DELETE
 // ============================================================
 
-const removePayment = async (req, res, next) => {
+const removeExpense = async (req, res, next) => {
   try {
-    await deletePayment(req.params.id);
+    await deleteExpense(req.params.id);
 
     res.status(200).json(
       new ApiResponse(
         200,
         true,
-        "Payment deleted successfully",
+        "Expense deleted successfully",
         null
       )
     );
@@ -155,12 +123,32 @@ const removePayment = async (req, res, next) => {
   }
 };
 
+// ============================================================
+// TOTAL
+// ============================================================
+
+const getTotalExpenses = async (req, res, next) => {
+  try {
+    const total = await getExpenseTotal(req.query);
+
+    res.status(200).json(
+      new ApiResponse(
+        200,
+        true,
+        "Expense total fetched successfully",
+        total
+      )
+    );
+  } catch (error) {
+    next(error);
+  }
+};
 
 module.exports = {
-  createPayment,
-  getAllPayments,
-  getPaymentsByWorker,
-  getWorkerPaymentSummaryController,
-  editPayment,
-  removePayment,
+  createExpense,
+  getAllExpenses,
+  getSingleExpense,
+  editExpense,
+  removeExpense,
+  getTotalExpenses,
 };

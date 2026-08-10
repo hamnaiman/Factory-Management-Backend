@@ -1,10 +1,14 @@
 const Product = require("../models/Product");
 
-// Get All Products (Search + Filters)
+// ============================================================
+// Get All Products
+// ============================================================
 const getProducts = async (query = {}) => {
-  const filter = {};
+  const filter = {
+    isDeleted: false,
+  };
 
-  // Search by Product Name or Product Code
+  // Search
   if (query.keyword) {
     filter.$or = [
       {
@@ -19,37 +23,39 @@ const getProducts = async (query = {}) => {
           $options: "i",
         },
       },
+      {
+        category: {
+          $regex: query.keyword,
+          $options: "i",
+        },
+      },
     ];
   }
 
-  // Filters
+  // Category
   if (query.category) {
     filter.category = query.category;
   }
 
-  if (query.productType) {
-    filter.productType = query.productType;
-  }
-
-  if (query.stockType) {
-    filter.stockType = query.stockType;
-  }
-
-  if (query.status) {
+  // Status
+  if (query.status && query.status !== "all") {
     filter.status = query.status;
   }
 
-  filter.status = "active";
+  // Default active products
+  if (!query.status || query.status === "all") {
+    filter.status = "active";
+  }
 
-return await Product.find(filter).sort({
-  createdAt: -1,
-});
+  return await Product.find(filter).sort({
+    createdAt: -1,
+  });
 };
 
+// ============================================================
 // Add Product
-// Add Product
+// ============================================================
 const addProduct = async (productData, userId) => {
-  // Check Duplicate Product Code
   const existingCode = await Product.findOne({
     productCode: productData.productCode,
   });
@@ -59,16 +65,23 @@ const addProduct = async (productData, userId) => {
   }
 
   const product = await Product.create({
-    ...productData,
+    productName: productData.productName,
+    productCode: productData.productCode,
+    category: productData.category,
+    color: productData.color,
+    unit: "Kg",
+    minimumStock: Number(productData.minimumStock || 5),
+    status: productData.status || "active",
     createdBy: userId,
   });
 
   return product;
 };
 
+// ============================================================
 // Update Product
+// ============================================================
 const updateProduct = async (id, productData) => {
-  // Duplicate Product Code Check
   if (productData.productCode) {
     const existingCode = await Product.findOne({
       productCode: productData.productCode,
@@ -80,25 +93,41 @@ const updateProduct = async (id, productData) => {
     }
   }
 
-  const product = await Product.findOneAndUpdate(
-  {
-    _id: id,
-    status: "active",
-  },
-  productData,
-  {
-    new: true,
-    runValidators: true,
-  }
-);
+  const updateData = {
+    productName: productData.productName,
+    productCode: productData.productCode,
+    category: productData.category,
+    color: productData.color,
+    unit: "Kg",
+    minimumStock: Number(productData.minimumStock || 5),
+  };
 
-if (!product) {
-  throw new Error("Active product not found");
-}
+  if (productData.status) {
+    updateData.status = productData.status;
+  }
+
+  const product = await Product.findOneAndUpdate(
+    {
+      _id: id,
+      isDeleted: false,
+    },
+    updateData,
+    {
+      new: true,
+      runValidators: true,
+    }
+  );
+
+  if (!product) {
+    throw new Error("Product not found");
+  }
 
   return product;
 };
-//retore Product
+
+// ============================================================
+// Restore Product
+// ============================================================
 const restoreProduct = async (id) => {
   const product = await Product.findById(id);
 
@@ -107,35 +136,33 @@ const restoreProduct = async (id) => {
   }
 
   product.status = "active";
+  product.isDeleted = false;
+  product.deletedAt = null;
 
   await product.save();
 
   return product;
 };
 
-
+// ============================================================
 // Soft Delete Product
+// ============================================================
 const deleteProduct = async (id) => {
-  console.log("Service Called");
-
   const product = await Product.findById(id);
-
-  console.log("Product:", product);
 
   if (!product) {
     throw new Error("Product not found");
   }
 
   product.status = "inactive";
-
-  console.log("Saving Product");
+  product.isDeleted = true;
+  product.deletedAt = new Date();
 
   await product.save();
 
-  console.log("Saved");
-
   return product;
 };
+
 module.exports = {
   getProducts,
   addProduct,

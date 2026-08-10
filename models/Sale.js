@@ -14,38 +14,53 @@ const saleItemSchema = new mongoose.Schema(
       trim: true,
     },
 
-    // ✅ Added: Client Document Section 7 & 8 requirement
     color: {
       type: String,
       trim: true,
       default: "",
     },
 
-    stockType: {
-      type: String,
-      enum: {
-        values: ["Local", "Imported"],
-        message: "Stock type must be either Local or Imported",
-      },
-      required: [true, "Stock type (Local/Imported) is required"],
-    },
-
     quantity: {
       type: Number,
       required: [true, "Quantity is required"],
-      min: [1, "Quantity must be at least 1"],
+      min: [0.01, "Quantity must be greater than 0"],
     },
 
+    // CUSTOMER SELLING RATE
     rate: {
       type: Number,
-      required: [true, "Rate is required"],
-      min: [0, "Rate cannot be negative"],
+      required: [true, "Selling rate is required"],
+      min: [0, "Selling rate cannot be negative"],
     },
 
+    // SELLING AMOUNT
     amount: {
       type: Number,
       required: [true, "Line total amount is required"],
       min: [0, "Amount cannot be negative"],
+    },
+
+    // ACTUAL PRODUCT COST (weighted-average purchase rate at time of sale)
+    costRate: {
+      type: Number,
+      required: true,
+      min: 0,
+      default: 0,
+    },
+
+    // ACTUAL COST OF THE SOLD QUANTITY
+    costAmount: {
+      type: Number,
+      required: true,
+      min: 0,
+      default: 0,
+    },
+
+    // PROFIT FOR THIS ITEM (amount - costAmount)
+    grossProfit: {
+      type: Number,
+      required: true,
+      default: 0,
     },
   },
   { _id: false }
@@ -96,13 +111,45 @@ const saleSchema = new mongoose.Schema(
       default: 0,
     },
 
-    discount: {
+    // Percentage tax rate applied to the subtotal (e.g. 17 for 17%)
+    taxRate: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    // Tax amount in currency, derived from subtotal * taxRate / 100
+    tax: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    // Renamed from "discount" so it matches the field name used
+    // throughout saleService.js (subtotal, tax, discountAmount, grandTotal).
+    discountAmount: {
       type: Number,
       default: 0,
       min: 0,
     },
 
     grandTotal: {
+      type: Number,
+      required: true,
+      default: 0,
+      min: 0,
+    },
+
+    // TOTAL COST OF GOODS SOLD (COGS) FOR THIS SALE
+    totalCost: {
+      type: Number,
+      required: true,
+      default: 0,
+      min: 0,
+    },
+
+    // REVENUE (subtotal - discountAmount) - COGS
+    grossProfit: {
       type: Number,
       required: true,
       default: 0,
@@ -125,6 +172,12 @@ const saleSchema = new mongoose.Schema(
       default: "Unpaid",
     },
 
+    paymentMethod: {
+      type: String,
+      enum: ["Cash", "Bank", "JazzCash", "EasyPaisa"],
+      default: "Cash",
+    },
+
     saleStatus: {
       type: String,
       enum: ["Completed", "Cancelled"],
@@ -142,13 +195,17 @@ const saleSchema = new mongoose.Schema(
       ref: "User",
       required: [true, "Created by user reference is required"],
     },
+
+    updatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
   },
   {
     timestamps: true,
   }
 );
 
-// Search aur Filter Performance ke liye Compound Indexes
 saleSchema.index({ invoiceDate: -1, client: 1 });
 
 module.exports = mongoose.model("Sale", saleSchema);

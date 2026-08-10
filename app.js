@@ -18,6 +18,9 @@ const saleRoutes = require("./routes/saleRoutes");
 const productionRoutes = require("./routes/productionRoutes");
 const reportRoutes = require("./routes/reportRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
+const vendorRoutes = require("./routes/vendorRoutes");
+const purchaseRoutes = require("./routes/purchaseRoutes");
+const expenseRoutes = require("./routes/expenseRoutes");
 
 // Middleware Import
 const errorMiddleware = require("./middleware/errorMiddleware");
@@ -66,6 +69,9 @@ app.use("/api/sales", saleRoutes);
 app.use("/api/production", productionRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/vendors", vendorRoutes);
+app.use("/api/purchases", purchaseRoutes);
+app.use("/api/expenses", expenseRoutes);
 
 
 // Error Middleware (Must be last)

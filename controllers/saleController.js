@@ -1,12 +1,11 @@
 const SaleService = require("../services/saleService");
 const ApiResponse = require("../utils/apiResponse");
 
-/**
- * ============================================================
- * CREATE SALE
- * POST /api/sales
- * ============================================================
- */
+// ============================================================
+// CREATE SALE
+// POST /api/sales
+// ============================================================
+
 const createSale = async (req, res, next) => {
     try {
         const userId = req.user?._id || req.user?.id;
@@ -29,12 +28,11 @@ const createSale = async (req, res, next) => {
     }
 };
 
-/**
- * ============================================================
- * GET ALL SALES
- * GET /api/sales
- * ============================================================
- */
+// ============================================================
+// GET ALL SALES
+// GET /api/sales
+// ============================================================
+
 const getSales = async (req, res, next) => {
     try {
         const sales = await SaleService.getSales(req.query);
@@ -52,15 +50,38 @@ const getSales = async (req, res, next) => {
     }
 };
 
-/**
- * ============================================================
- * GET SALE BY ID
- * GET /api/sales/:id
- * ============================================================
- */
+// ============================================================
+// GET TOTAL SALES
+// GET /api/sales/total
+// ============================================================
+
+const getSalesTotal = async (req, res, next) => {
+    try {
+        const total = await SaleService.getSalesTotal(req.query);
+
+        return res.status(200).json(
+            new ApiResponse(
+                200,
+                true,
+                "Sales total fetched successfully.",
+                total
+            )
+        );
+    } catch (error) {
+        next(error);
+    }
+};
+
+// ============================================================
+// GET SALE BY ID
+// GET /api/sales/:id
+// ============================================================
+
 const getSaleById = async (req, res, next) => {
     try {
-        const sale = await SaleService.getSaleById(req.params.id);
+        const sale = await SaleService.getSaleById(
+            req.params.id
+        );
 
         return res.status(200).json(
             new ApiResponse(
@@ -75,12 +96,11 @@ const getSaleById = async (req, res, next) => {
     }
 };
 
-/**
- * ============================================================
- * UPDATE SALE
- * PUT /api/sales/:id
- * ============================================================
- */
+// ============================================================
+// UPDATE SALE
+// PUT /api/sales/:id
+// ============================================================
+
 const updateSale = async (req, res, next) => {
     try {
         const userId = req.user?._id || req.user?.id;
@@ -104,12 +124,11 @@ const updateSale = async (req, res, next) => {
     }
 };
 
-/**
- * ============================================================
- * CANCEL SALE
- * DELETE /api/sales/:id
- * ============================================================
- */
+// ============================================================
+// CANCEL SALE
+// DELETE /api/sales/:id
+// ============================================================
+
 const cancelSale = async (req, res, next) => {
     try {
         const userId = req.user?._id || req.user?.id;
@@ -132,15 +151,16 @@ const cancelSale = async (req, res, next) => {
     }
 };
 
-/**
- * ============================================================
- * GET INVOICE
- * GET /api/sales/:id/invoice
- * ============================================================
- */
+// ============================================================
+// GET INVOICE
+// GET /api/sales/:id/invoice
+// ============================================================
+
 const getInvoice = async (req, res, next) => {
     try {
-        const invoice = await SaleService.getInvoice(req.params.id);
+        const invoice = await SaleService.getInvoice(
+            req.params.id
+        );
 
         return res.status(200).json(
             new ApiResponse(
@@ -158,6 +178,7 @@ const getInvoice = async (req, res, next) => {
 module.exports = {
     createSale,
     getSales,
+    getSalesTotal,
     getSaleById,
     updateSale,
     cancelSale,

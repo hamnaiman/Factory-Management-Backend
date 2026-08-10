@@ -1,5 +1,3 @@
-
-
 const Sale = require("../models/Sale");
 const Client = require("../models/Client");
 const Product = require("../models/Product");
@@ -7,152 +5,863 @@ const Production = require("../models/Production");
 const Labour = require("../models/Labour");
 const Attendance = require("../models/Attendance");
 const Payment = require("../models/Payment");
+const Expense = require("../models/Expense");
 
 const StockService = require("./stockService");
 const ReportService = require("./reportService");
 
+// ============================================================
+// DATE HELPERS
+// ============================================================
+
 const getTodayBounds = () => {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
+
   const end = new Date();
   end.setHours(23, 59, 59, 999);
+
   return { start, end };
 };
 
-const getDashboardData = async () => {
-  const { start: todayStart, end: todayEnd } = getTodayBounds();
+const getDateRange = (fromDate, toDate) => {
+  let start = null;
+  let end = null;
 
-  const [
-    totalWorkers,
-    presentToday,
-    absentToday,
-    leaveToday,
-    stockAgg,
-    lowStockRaw,
-    labourOutstandingRows,
-    todayPaymentsAgg,
-    todayAdvanceAgg,
-    recentAttendance,
-    recentPayments,
+  if (fromDate) {
+    const parsedStart = new Date(fromDate);
 
-    // extra (not yet consumed by any component, kept for future cards)
-    todaySalesAgg,
-    totalSalesAgg,
-    receivablesAgg,
-    todayProductionCount,
-  ] = await Promise.all([
-    Labour.countDocuments({ status: "active" }),
-    Attendance.countDocuments({ status: "present", date: { $gte: todayStart, $lte: todayEnd } }),
-    Attendance.countDocuments({ status: "absent", date: { $gte: todayStart, $lte: todayEnd } }),
-    Attendance.countDocuments({ status: "leave", date: { $gte: todayStart, $lte: todayEnd } }),
+    if (!Number.isNaN(parsedStart.getTime())) {
+      parsedStart.setHours(0, 0, 0, 0);
+      start = parsedStart;
+    }
+  }
 
-    Product.aggregate([
-      { $match: { isDeleted: false, status: "active" } },
-      {
-        $group: {
-          _id: null,
-          totalCurrentStock: { $sum: "$currentStock" },
-          productCount: { $sum: 1 },
-        },
-      },
-    ]),
+  if (toDate) {
+    const parsedEnd = new Date(toDate);
 
-    // Reuse StockService — never re-derive low-stock logic here
-    StockService.getLowStockProducts(),
+    if (!Number.isNaN(parsedEnd.getTime())) {
+      parsedEnd.setHours(23, 59, 59, 999);
+      end = parsedEnd;
+    }
+  }
 
-    // Reuse ReportService — all-time labour outstanding balance
-    ReportService.getLabourOutstandingBalanceReport({}),
+  return { start, end };
+};
 
-    Payment.aggregate([
-      { $match: { paymentDate: { $gte: todayStart, $lte: todayEnd } } },
-      { $group: { _id: null, total: { $sum: "$amount" } } },
-    ]),
+const getCurrentMonthBounds = () => {
+  const now = new Date();
 
-    Payment.aggregate([
-      {
-        $match: {
-          paymentType: "Advance",
-          paymentDate: { $gte: todayStart, $lte: todayEnd },
-        },
-      },
-      { $group: { _id: null, total: { $sum: "$amount" } } },
-    ]),
-
-    Attendance.find()
-      .populate("worker", "name")
-      .sort({ createdAt: -1 })
-      .limit(5),
-
-    Payment.find()
-      .populate("worker", "name")
-      .sort({ createdAt: -1 })
-      .limit(5),
-
-    // --- extra aggregates ---
-    Sale.aggregate([
-      {
-        $match: {
-          saleStatus: "Completed",
-          invoiceDate: { $gte: todayStart, $lte: todayEnd },
-        },
-      },
-      { $group: { _id: null, total: { $sum: "$grandTotal" } } },
-    ]),
-    Sale.aggregate([
-      { $match: { saleStatus: "Completed" } },
-      { $group: { _id: null, total: { $sum: "$grandTotal" } } },
-    ]),
-    Client.aggregate([
-      { $match: { isDeleted: false } },
-      { $group: { _id: null, total: { $sum: "$outstandingBalance" } } },
-    ]),
-    Production.countDocuments({
-      status: "Active",
-      productionDate: { $gte: todayStart, $lte: todayEnd },
-    }),
-  ]);
-
-  const pendingSalary = labourOutstandingRows.reduce(
-    (sum, row) => sum + (row.remainingBalance > 0 ? row.remainingBalance : 0),
+  const start = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    1,
+    0,
+    0,
+    0,
     0
   );
 
-  // Reshape StockService's inventory-view items into what <LowStock/> expects
-  const lowStockProducts = lowStockRaw.map((item) => ({
+  const end = new Date(
+    now.getFullYear(),
+    now.getMonth() + 1,
+    0,
+    23,
+    59,
+    59,
+    999
+  );
+
+  return { start, end };
+};
+
+// ============================================================
+// DASHBOARD DATA
+// ============================================================
+
+const getDashboardData = async (filters = {}) => {
+  const { fromDate, toDate } = filters;
+
+  const {
+    start: todayStart,
+    end: todayEnd,
+  } = getTodayBounds();
+
+  const {
+    start: monthStart,
+    end: monthEnd,
+  } = getCurrentMonthBounds();
+
+  const {
+    start: financialStart,
+    end: financialEnd,
+  } = getDateRange(fromDate, toDate);
+
+  // ==========================================================
+  // SALES FILTER
+  // ==========================================================
+
+  const salesMatch = {
+    saleStatus: "Completed",
+
+    // Deleted sales are ignored.
+    $or: [
+      { isDeleted: false },
+      { isDeleted: { $exists: false } },
+    ],
+  };
+
+  if (financialStart || financialEnd) {
+    salesMatch.invoiceDate = {};
+
+    if (financialStart) {
+      salesMatch.invoiceDate.$gte = financialStart;
+    }
+
+    if (financialEnd) {
+      salesMatch.invoiceDate.$lte = financialEnd;
+    }
+  }
+
+  // ==========================================================
+  // EXPENSE FILTER
+  //
+  // IMPORTANT:
+  // Deleted expenses MUST NOT be included.
+  // ==========================================================
+
+  const expenseMatch = {
+    $or: [
+      { isDeleted: false },
+      { isDeleted: { $exists: false } },
+    ],
+  };
+
+  if (financialStart || financialEnd) {
+    expenseMatch.date = {};
+
+    if (financialStart) {
+      expenseMatch.date.$gte = financialStart;
+    }
+
+    if (financialEnd) {
+      expenseMatch.date.$lte = financialEnd;
+    }
+  }
+
+  // ==========================================================
+  // TODAY EXPENSE FILTER
+  // ==========================================================
+
+  const todayExpenseMatch = {
+    date: {
+      $gte: todayStart,
+      $lte: todayEnd,
+    },
+
+    $or: [
+      { isDeleted: false },
+      { isDeleted: { $exists: false } },
+    ],
+  };
+
+  // ==========================================================
+  // MONTH EXPENSE FILTER
+  // ==========================================================
+
+  const monthlyExpenseMatch = {
+    date: {
+      $gte: monthStart,
+      $lte: monthEnd,
+    },
+
+    $or: [
+      { isDeleted: false },
+      { isDeleted: { $exists: false } },
+    ],
+  };
+
+  // ==========================================================
+  // TODAY SALES FILTER
+  // ==========================================================
+
+  const todaySalesMatch = {
+    saleStatus: "Completed",
+
+    invoiceDate: {
+      $gte: todayStart,
+      $lte: todayEnd,
+    },
+
+    $or: [
+      { isDeleted: false },
+      { isDeleted: { $exists: false } },
+    ],
+  };
+
+  // ==========================================================
+  // MONTH SALES FILTER
+  // ==========================================================
+
+  const monthlySalesMatch = {
+    saleStatus: "Completed",
+
+    invoiceDate: {
+      $gte: monthStart,
+      $lte: monthEnd,
+    },
+
+    $or: [
+      { isDeleted: false },
+      { isDeleted: { $exists: false } },
+    ],
+  };
+
+  // ==========================================================
+  // RUN DASHBOARD QUERIES
+  // ==========================================================
+
+  const [
+    stockAgg,
+    lowStockRaw,
+    labourOutstandingRows,
+
+    recentAttendance,
+
+    todayPayments,
+
+    salesAgg,
+    expensesAgg,
+
+    todaySalesAgg,
+    todayExpensesAgg,
+
+    monthlySalesAgg,
+    monthlyExpensesAgg,
+
+    receivablesAgg,
+
+    todayProductionCount,
+
+    totalWorkers,
+
+    todayAttendance,
+  ] = await Promise.all([
+    // ========================================================
+    // STOCK
+    // ========================================================
+
+    Product.aggregate([
+      {
+        $match: {
+          isDeleted: false,
+          status: "active",
+        },
+      },
+
+      {
+        $group: {
+          _id: null,
+
+          totalCurrentStock: {
+            $sum: {
+              $ifNull: ["$currentStock", 0],
+            },
+          },
+
+          productCount: {
+            $sum: 1,
+          },
+        },
+      },
+    ]),
+
+    // ========================================================
+    // LOW STOCK
+    // ========================================================
+
+    StockService.getLowStockProducts(),
+
+    // ========================================================
+    // LABOUR OUTSTANDING
+    // ========================================================
+
+    ReportService.getLabourOutstandingBalanceReport({}),
+
+    // ========================================================
+    // RECENT ATTENDANCE
+    // ========================================================
+
+    Attendance.find()
+      .populate("worker", "name")
+      .sort({
+        date: -1,
+        createdAt: -1,
+      })
+      .limit(10),
+
+    // ========================================================
+    // TODAY PAYMENTS
+    // ========================================================
+
+    Payment.find({
+      paymentDate: {
+        $gte: todayStart,
+        $lte: todayEnd,
+      },
+    })
+      .populate("worker", "name")
+      .sort({
+        paymentDate: -1,
+        createdAt: -1,
+      }),
+
+    // ========================================================
+    // TOTAL REVENUE + COGS
+    // ========================================================
+
+    Sale.aggregate([
+      {
+        $match: salesMatch,
+      },
+
+      {
+        $group: {
+          _id: null,
+
+          totalRevenue: {
+            $sum: {
+              $ifNull: ["$grandTotal", 0],
+            },
+          },
+
+          totalCOGS: {
+            $sum: {
+              $ifNull: ["$totalCost", 0],
+            },
+          },
+        },
+      },
+    ]),
+
+    // ========================================================
+    // TOTAL EXPENSES
+    // ========================================================
+
+    Expense.aggregate([
+      {
+        $match: expenseMatch,
+      },
+
+      {
+        $group: {
+          _id: null,
+
+          total: {
+            $sum: {
+              $ifNull: ["$amount", 0],
+            },
+          },
+        },
+      },
+    ]),
+
+    // ========================================================
+    // TODAY SALES
+    // ========================================================
+
+    Sale.aggregate([
+      {
+        $match: todaySalesMatch,
+      },
+
+      {
+        $group: {
+          _id: null,
+
+          total: {
+            $sum: {
+              $ifNull: ["$grandTotal", 0],
+            },
+          },
+        },
+      },
+    ]),
+
+    // ========================================================
+    // TODAY EXPENSES
+    // ========================================================
+
+    Expense.aggregate([
+      {
+        $match: todayExpenseMatch,
+      },
+
+      {
+        $group: {
+          _id: null,
+
+          total: {
+            $sum: {
+              $ifNull: ["$amount", 0],
+            },
+          },
+        },
+      },
+    ]),
+
+    // ========================================================
+    // MONTHLY REVENUE + COGS
+    // ========================================================
+
+    Sale.aggregate([
+      {
+        $match: monthlySalesMatch,
+      },
+
+      {
+        $group: {
+          _id: null,
+
+          totalRevenue: {
+            $sum: {
+              $ifNull: ["$grandTotal", 0],
+            },
+          },
+
+          totalCOGS: {
+            $sum: {
+              $ifNull: ["$totalCost", 0],
+            },
+          },
+        },
+      },
+    ]),
+
+    // ========================================================
+    // MONTHLY EXPENSES
+    // ========================================================
+
+    Expense.aggregate([
+      {
+        $match: monthlyExpenseMatch,
+      },
+
+      {
+        $group: {
+          _id: null,
+
+          total: {
+            $sum: {
+              $ifNull: ["$amount", 0],
+            },
+          },
+        },
+      },
+    ]),
+
+    // ========================================================
+    // CLIENT RECEIVABLES
+    // ========================================================
+
+    Client.aggregate([
+      {
+        $match: {
+          $or: [
+            { isDeleted: false },
+            { isDeleted: { $exists: false } },
+          ],
+        },
+      },
+
+      {
+        $group: {
+          _id: null,
+
+          total: {
+            $sum: {
+              $ifNull: ["$outstandingBalance", 0],
+            },
+          },
+        },
+      },
+    ]),
+
+    // ========================================================
+    // TODAY PRODUCTION
+    // ========================================================
+
+    Production.countDocuments({
+      status: "Active",
+
+      productionDate: {
+        $gte: todayStart,
+        $lte: todayEnd,
+      },
+    }),
+
+    // ========================================================
+    // TOTAL ACTIVE WORKERS
+    // ========================================================
+
+    Labour.countDocuments({
+      isDeleted: false,
+      status: "active",
+    }),
+
+    // ========================================================
+    // TODAY ATTENDANCE
+    // ========================================================
+
+    Attendance.find({
+      date: {
+        $gte: todayStart,
+        $lte: todayEnd,
+      },
+    })
+      .populate("worker", "name")
+      .sort({
+        date: -1,
+        createdAt: -1,
+      }),
+  ]);
+
+  // ==========================================================
+  // FINANCIAL CALCULATIONS
+  // ==========================================================
+
+  const totalRevenue = Number(
+    salesAgg?.[0]?.totalRevenue || 0
+  );
+
+  const totalCOGS = Number(
+    salesAgg?.[0]?.totalCOGS || 0
+  );
+
+  const grossProfit =
+    totalRevenue - totalCOGS;
+
+  const totalExpenses = Number(
+    expensesAgg?.[0]?.total || 0
+  );
+
+  const netProfit =
+    grossProfit - totalExpenses;
+
+  // ==========================================================
+  // TODAY FINANCIALS
+  // ==========================================================
+
+  const todaySales = Number(
+    todaySalesAgg?.[0]?.total || 0
+  );
+
+  const todayExpenses = Number(
+    todayExpensesAgg?.[0]?.total || 0
+  );
+
+  const todayProfit =
+    todaySales - todayExpenses;
+
+  // ==========================================================
+  // MONTHLY FINANCIALS
+  // ==========================================================
+
+  const monthlyRevenue = Number(
+    monthlySalesAgg?.[0]?.totalRevenue || 0
+  );
+
+  const monthlyCOGS = Number(
+    monthlySalesAgg?.[0]?.totalCOGS || 0
+  );
+
+  const monthlyGrossProfit =
+    monthlyRevenue - monthlyCOGS;
+
+  const monthlyExpenses = Number(
+    monthlyExpensesAgg?.[0]?.total || 0
+  );
+
+  const monthlyNetProfit =
+    monthlyGrossProfit - monthlyExpenses;
+
+  // ==========================================================
+  // LABOUR OUTSTANDING
+  // ==========================================================
+
+  const pendingSalary = (
+    labourOutstandingRows || []
+  ).reduce((sum, row) => {
+    const remaining = Number(
+      row?.remainingBalance || 0
+    );
+
+    return sum + (remaining > 0 ? remaining : 0);
+  }, 0);
+
+  // ==========================================================
+  // LOW STOCK
+  // ==========================================================
+
+  const lowStockProducts = (
+    lowStockRaw || []
+  ).map((item) => ({
     _id: item.productId,
     name: item.productName,
-    quantity: item.currentStock,
+    quantity: Number(
+      item.currentStock || 0
+    ),
   }));
 
+  // ==========================================================
+  // ATTENDANCE
+  //
+  // IMPORTANT:
+  // Only ONE attendance record per worker is counted.
+  // This prevents:
+  //
+  // 6 of 3 workers
+  //
+  // ==========================================================
+
+  const attendanceByWorker =
+    new Map();
+
+  if (Array.isArray(todayAttendance)) {
+    todayAttendance.forEach((record) => {
+      const workerId =
+        record?.worker?._id?.toString() ||
+        record?.worker?.toString();
+
+      if (!workerId) {
+        return;
+      }
+
+      // Because query is sorted newest first,
+      // first record is the latest one.
+      if (!attendanceByWorker.has(workerId)) {
+        attendanceByWorker.set(
+          workerId,
+          record
+        );
+      }
+    });
+  }
+
+  const uniqueTodayAttendance =
+    Array.from(
+      attendanceByWorker.values()
+    );
+
+  let presentToday = 0;
+  let absentToday = 0;
+  let leaveToday = 0;
+
+  uniqueTodayAttendance.forEach(
+    (record) => {
+      const status = String(
+        record?.status || ""
+      ).toLowerCase();
+
+      if (status === "present") {
+        presentToday += 1;
+      }
+
+      if (status === "absent") {
+        absentToday += 1;
+      }
+
+      if (status === "leave") {
+        leaveToday += 1;
+      }
+    }
+  );
+
+  const recordedToday = Math.min(
+    uniqueTodayAttendance.length,
+    Number(totalWorkers || 0)
+  );
+
+  const attendanceCompleted =
+    Number(totalWorkers || 0) > 0 &&
+    recordedToday >=
+      Number(totalWorkers || 0);
+
+  // ==========================================================
+  // TODAY PAYMENT TOTAL
+  // ==========================================================
+
+  const todayPaymentTotal = (
+    todayPayments || []
+  ).reduce((sum, payment) => {
+    return (
+      sum +
+      Number(payment?.amount || 0)
+    );
+  }, 0);
+
+  // ==========================================================
+  // FINAL RESPONSE
+  // ==========================================================
+
   return {
-    // --- consumed by AttendanceHero / StatsSection / TodaySummary ---
-    totalWorkers,
-    presentToday,
-    absentToday,
-    leaveToday,
+    // ========================================================
+    // FINANCIAL
+    // ========================================================
 
-    // --- consumed by StatsSection ---
-    totalProducts: stockAgg[0]?.productCount || 0,
-    pendingSalary,
-    todaySalaryExpense: todayPaymentsAgg[0]?.total || 0,
+    totalRevenue: Number(
+      totalRevenue
+    ),
 
-    // --- consumed by TodaySummary ---
-    advancePayments: todayAdvanceAgg[0]?.total || 0,
+    totalCOGS: Number(
+      totalCOGS
+    ),
 
-    // --- consumed by LowStock ---
+    grossProfit: Number(
+      grossProfit
+    ),
+
+    totalExpenses: Number(
+      totalExpenses
+    ),
+
+    netProfit: Number(
+      netProfit
+    ),
+
+    totalSales: Number(
+      totalRevenue
+    ),
+
+    // ========================================================
+    // TODAY FINANCIALS
+    // ========================================================
+
+    todaySales: Number(
+      todaySales
+    ),
+
+    todayExpenses: Number(
+      todayExpenses
+    ),
+
+    todayProfit: Number(
+      todayProfit
+    ),
+
+    // ========================================================
+    // MONTHLY FINANCIALS
+    // ========================================================
+
+    monthlyRevenue: Number(
+      monthlyRevenue
+    ),
+
+    monthlyCOGS: Number(
+      monthlyCOGS
+    ),
+
+    monthlyGrossProfit:
+      Number(monthlyGrossProfit),
+
+    monthlyExpenses:
+      Number(monthlyExpenses),
+
+    monthlyNetProfit:
+      Number(monthlyNetProfit),
+
+    // ========================================================
+    // PAYMENTS
+    // ========================================================
+
+    todayPayments:
+      todayPayments || [],
+
+    todayPaymentTotal:
+      Number(todayPaymentTotal),
+
+    recentPayments:
+      todayPayments || [],
+
+    // ========================================================
+    // ATTENDANCE
+    // ========================================================
+
+    totalWorkers:
+      Number(totalWorkers || 0),
+
+    presentToday:
+      Number(presentToday),
+
+    absentToday:
+      Number(absentToday),
+
+    leaveToday:
+      Number(leaveToday),
+
+    recordedToday:
+      Number(recordedToday),
+
+    // Frontend compatibility
+    attendanceRecordedToday:
+      Number(recordedToday),
+
+    recordedWorkersToday:
+      Number(recordedToday),
+
+    attendanceCompleted,
+
+    todayAttendance:
+      uniqueTodayAttendance,
+
+    // ========================================================
+    // STOCK
+    // ========================================================
+
+    totalProducts:
+      Number(
+        stockAgg?.[0]?.productCount || 0
+      ),
+
+    currentStockUnits:
+      Number(
+        stockAgg?.[0]?.totalCurrentStock || 0
+      ),
+
     lowStockProducts,
 
-    // --- consumed by RecentActivity ---
-    recentAttendance,
-    recentPayments,
+    // ========================================================
+    // LABOUR
+    // ========================================================
 
-    // --- extra, for future Sales/Production cards ---
-    todaySales: todaySalesAgg[0]?.total || 0,
-    totalSales: totalSalesAgg[0]?.total || 0,
-    totalReceivables: receivablesAgg[0]?.total || 0,
-    todayProductionCount,
-    currentStockUnits: stockAgg[0]?.totalCurrentStock || 0,
+    pendingSalary:
+      Number(pendingSalary),
+
+    // ========================================================
+    // CLIENTS
+    // ========================================================
+
+    totalReceivables:
+      Number(
+        receivablesAgg?.[0]?.total || 0
+      ),
+
+    // ========================================================
+    // ACTIVITY
+    // ========================================================
+
+    recentAttendance:
+      recentAttendance || [],
+
+    // ========================================================
+    // PRODUCTION
+    // ========================================================
+
+    todayProductionCount:
+      Number(todayProductionCount || 0),
   };
 };
 
-module.exports = { getDashboardData };
+module.exports = {
+  getDashboardData,
+};
