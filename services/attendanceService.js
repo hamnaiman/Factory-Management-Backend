@@ -4,19 +4,23 @@ const Attendance = require("../models/Attendance");
 // DATE HELPERS
 // =====================================================
 
-// Convert YYYY-MM-DD into UTC start/end range
 const getDateRange = (date) => {
   if (!date) {
     throw new Error("Attendance date is required");
   }
 
-  const start = new Date(`${date}T00:00:00.000Z`);
+  const dateString = String(date).trim();
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+    throw new Error("Invalid attendance date. Use YYYY-MM-DD");
+  }
+
+  const start = new Date(`${dateString}T00:00:00.000Z`);
+  const end = new Date(`${dateString}T23:59:59.999Z`);
 
   if (Number.isNaN(start.getTime())) {
     throw new Error("Invalid attendance date");
   }
-
-  const end = new Date(`${date}T23:59:59.999Z`);
 
   return {
     start,
@@ -25,7 +29,7 @@ const getDateRange = (date) => {
 };
 
 // =====================================================
-// SAVE ATTENDANCE
+// SAVE / UPDATE ATTENDANCE
 // =====================================================
 
 const markAttendance = async (attendanceData, adminId) => {
@@ -49,25 +53,27 @@ const markAttendance = async (attendanceData, adminId) => {
     }
 
     if (!item.status) {
-      throw new Error("Attendance status is required");
+      throw new Error(
+        `Attendance status is required for worker ${item.worker}`
+      );
     }
 
     if (!item.date) {
       throw new Error("Attendance date is required");
     }
 
-    if (
-      !["present", "absent", "leave"].includes(
-        item.status
-      )
-    ) {
-      throw new Error("Invalid attendance status");
+    const status = String(item.status).toLowerCase().trim();
+
+    if (!["present", "absent", "leave"].includes(status)) {
+      throw new Error(`Invalid attendance status: ${item.status}`);
     }
 
     const { start, end } = getDateRange(item.date);
 
-    // Check whether this worker already has attendance
-    // for this exact date.
+    // =================================================
+    // FIND EXISTING RECORD
+    // =================================================
+
     const existing = await Attendance.findOne({
       worker: item.worker,
       date: {
@@ -76,28 +82,33 @@ const markAttendance = async (attendanceData, adminId) => {
       },
     });
 
-    // Do NOT create duplicate attendance.
+    // =================================================
+    // IF EXISTS → UPDATE
+    // NEVER CREATE SECOND RECORD
+    // =================================================
+
     if (existing) {
+      existing.status = status;
+      existing.markedBy = adminId;
+
+      const updatedRecord = await existing.save();
+
+      results.push(updatedRecord);
       continue;
     }
 
-    const record = await Attendance.create({
+    // =================================================
+    // IF DOES NOT EXIST → CREATE
+    // =================================================
+
+    const newRecord = await Attendance.create({
       worker: item.worker,
-      status: item.status,
-
-      // Store exact calendar date
       date: start,
-
+      status,
       markedBy: adminId,
     });
 
-    results.push(record);
-  }
-
-  if (results.length === 0) {
-    throw new Error(
-      "Attendance is already saved for the selected worker(s) and date."
-    );
+    results.push(newRecord);
   }
 
   return results;
@@ -108,27 +119,23 @@ const markAttendance = async (attendanceData, adminId) => {
 // =====================================================
 
 const getTodayAttendance = async () => {
-  // Pakistan date
-  const pakistanDate = new Intl.DateTimeFormat(
-    "en-CA",
-    {
-      timeZone: "Asia/Karachi",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }
-  ).format(new Date());
+  const pakistanDate = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Karachi",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
 
-  const { start, end } = getDateRange(
-    pakistanDate
-  );
+  const { start, end } = getDateRange(pakistanDate);
 
-  return await Attendance.find({
+  return Attendance.find({
     date: {
       $gte: start,
       $lte: end,
     },
-  }).populate("worker");
+  })
+    .populate("worker")
+    .sort({ createdAt: -1 });
 };
 
 // =====================================================
@@ -138,12 +145,14 @@ const getTodayAttendance = async () => {
 const getAttendanceByDate = async (date) => {
   const { start, end } = getDateRange(date);
 
-  return await Attendance.find({
+  return Attendance.find({
     date: {
       $gte: start,
       $lte: end,
     },
-  }).populate("worker");
+  })
+    .populate("worker")
+    .sort({ createdAt: -1 });
 };
 
 // =====================================================
@@ -151,7 +160,7 @@ const getAttendanceByDate = async (date) => {
 // =====================================================
 
 const getAttendanceHistory = async () => {
-  return await Attendance.aggregate([
+  return Attendance.aggregate([
     {
       $group: {
         _id: {
@@ -168,9 +177,7 @@ const getAttendanceHistory = async () => {
         present: {
           $sum: {
             $cond: [
-              {
-                $eq: ["$status", "present"],
-              },
+              { $eq: ["$status", "present"] },
               1,
               0,
             ],
@@ -180,9 +187,7 @@ const getAttendanceHistory = async () => {
         absent: {
           $sum: {
             $cond: [
-              {
-                $eq: ["$status", "absent"],
-              },
+              { $eq: ["$status", "absent"] },
               1,
               0,
             ],
@@ -192,9 +197,7 @@ const getAttendanceHistory = async () => {
         leave: {
           $sum: {
             $cond: [
-              {
-                $eq: ["$status", "leave"],
-              },
+              { $eq: ["$status", "leave"] },
               1,
               0,
             ],

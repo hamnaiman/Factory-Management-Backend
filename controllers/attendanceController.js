@@ -8,7 +8,7 @@ const {
 const ApiResponse = require("../utils/apiResponse");
 
 // =====================================================
-// SAVE ATTENDANCE
+// SAVE / UPDATE ATTENDANCE
 // =====================================================
 
 const createAttendance = async (req, res, next) => {
@@ -18,9 +18,9 @@ const createAttendance = async (req, res, next) => {
       req.user._id
     );
 
-    res.status(201).json(
+    return res.status(200).json(
       new ApiResponse(
-        201,
+        200,
         true,
         "Attendance saved successfully",
         attendance
@@ -37,10 +37,9 @@ const createAttendance = async (req, res, next) => {
 
 const getToday = async (req, res, next) => {
   try {
-    const attendance =
-      await getTodayAttendance();
+    const attendance = await getTodayAttendance();
 
-    res.status(200).json(
+    return res.status(200).json(
       new ApiResponse(
         200,
         true,
@@ -57,16 +56,11 @@ const getToday = async (req, res, next) => {
 // HISTORY
 // =====================================================
 
-const attendanceHistory = async (
-  req,
-  res,
-  next
-) => {
+const attendanceHistory = async (req, res, next) => {
   try {
-    const history =
-      await getAttendanceHistory();
+    const history = await getAttendanceHistory();
 
-    res.status(200).json(
+    return res.status(200).json(
       new ApiResponse(
         200,
         true,
@@ -83,18 +77,13 @@ const attendanceHistory = async (
 // BY DATE
 // =====================================================
 
-const attendanceByDate = async (
-  req,
-  res,
-  next
-) => {
+const attendanceByDate = async (req, res, next) => {
   try {
-    const attendance =
-      await getAttendanceByDate(
-        req.params.date
-      );
+    const attendance = await getAttendanceByDate(
+      req.params.date
+    );
 
-    res.status(200).json(
+    return res.status(200).json(
       new ApiResponse(
         200,
         true,
