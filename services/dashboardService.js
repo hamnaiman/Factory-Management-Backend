@@ -447,7 +447,9 @@ const getDashboardData = async (filters = {}) => {
 
     Expense.aggregate([
       {
-        $match: monthlyExpensesMatch,
+        // FIXED:
+        // monthlyExpensesMatch -> monthlyExpenseMatch
+        $match: monthlyExpenseMatch,
       },
 
       {
@@ -610,7 +612,9 @@ const getDashboardData = async (filters = {}) => {
     lowStockRaw || []
   ).map((item) => ({
     _id: item.productId,
+
     name: item.productName,
+
     quantity: Number(
       item.currentStock || 0
     ),
