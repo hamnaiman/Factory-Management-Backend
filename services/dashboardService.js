@@ -104,7 +104,6 @@ const getDashboardData = async (filters = {}) => {
   const salesMatch = {
     saleStatus: "Completed",
 
-    // Deleted sales are ignored.
     $or: [
       { isDeleted: false },
       { isDeleted: { $exists: false } },
@@ -125,9 +124,6 @@ const getDashboardData = async (filters = {}) => {
 
   // ==========================================================
   // EXPENSE FILTER
-  //
-  // IMPORTANT:
-  // Deleted expenses MUST NOT be included.
   // ==========================================================
 
   const expenseMatch = {
@@ -265,7 +261,14 @@ const getDashboardData = async (filters = {}) => {
 
           totalCurrentStock: {
             $sum: {
-              $ifNull: ["$currentStock", 0],
+              $convert: {
+                input: {
+                  $ifNull: ["$currentStock", 0],
+                },
+                to: "double",
+                onError: 0,
+                onNull: 0,
+              },
             },
           },
 
@@ -444,7 +447,7 @@ const getDashboardData = async (filters = {}) => {
 
     Expense.aggregate([
       {
-        $match: monthlyExpenseMatch,
+        $match: monthlyExpensesMatch,
       },
 
       {
@@ -616,16 +619,10 @@ const getDashboardData = async (filters = {}) => {
   // ==========================================================
   // ATTENDANCE
   //
-  // IMPORTANT:
-  // Only ONE attendance record per worker is counted.
-  // This prevents:
-  //
-  // 6 of 3 workers
-  //
+  // Only ONE attendance record per worker
   // ==========================================================
 
-  const attendanceByWorker =
-    new Map();
+  const attendanceByWorker = new Map();
 
   if (Array.isArray(todayAttendance)) {
     todayAttendance.forEach((record) => {
@@ -637,8 +634,6 @@ const getDashboardData = async (filters = {}) => {
         return;
       }
 
-      // Because query is sorted newest first,
-      // first record is the latest one.
       if (!attendanceByWorker.has(workerId)) {
         attendanceByWorker.set(
           workerId,
@@ -701,6 +696,18 @@ const getDashboardData = async (filters = {}) => {
   }, 0);
 
   // ==========================================================
+  // STOCK TOTAL
+  // ==========================================================
+
+  const totalProducts = Number(
+    stockAgg?.[0]?.productCount || 0
+  );
+
+  const totalStock = Number(
+    stockAgg?.[0]?.totalCurrentStock || 0
+  );
+
+  // ==========================================================
   // FINAL RESPONSE
   // ==========================================================
 
@@ -709,57 +716,35 @@ const getDashboardData = async (filters = {}) => {
     // FINANCIAL
     // ========================================================
 
-    totalRevenue: Number(
-      totalRevenue
-    ),
+    totalRevenue: Number(totalRevenue),
 
-    totalCOGS: Number(
-      totalCOGS
-    ),
+    totalCOGS: Number(totalCOGS),
 
-    grossProfit: Number(
-      grossProfit
-    ),
+    grossProfit: Number(grossProfit),
 
-    totalExpenses: Number(
-      totalExpenses
-    ),
+    totalExpenses: Number(totalExpenses),
 
-    netProfit: Number(
-      netProfit
-    ),
+    netProfit: Number(netProfit),
 
-    totalSales: Number(
-      totalRevenue
-    ),
+    totalSales: Number(totalRevenue),
 
     // ========================================================
     // TODAY FINANCIALS
     // ========================================================
 
-    todaySales: Number(
-      todaySales
-    ),
+    todaySales: Number(todaySales),
 
-    todayExpenses: Number(
-      todayExpenses
-    ),
+    todayExpenses: Number(todayExpenses),
 
-    todayProfit: Number(
-      todayProfit
-    ),
+    todayProfit: Number(todayProfit),
 
     // ========================================================
     // MONTHLY FINANCIALS
     // ========================================================
 
-    monthlyRevenue: Number(
-      monthlyRevenue
-    ),
+    monthlyRevenue: Number(monthlyRevenue),
 
-    monthlyCOGS: Number(
-      monthlyCOGS
-    ),
+    monthlyCOGS: Number(monthlyCOGS),
 
     monthlyGrossProfit:
       Number(monthlyGrossProfit),
@@ -802,7 +787,6 @@ const getDashboardData = async (filters = {}) => {
     recordedToday:
       Number(recordedToday),
 
-    // Frontend compatibility
     attendanceRecordedToday:
       Number(recordedToday),
 
@@ -818,15 +802,13 @@ const getDashboardData = async (filters = {}) => {
     // STOCK
     // ========================================================
 
-    totalProducts:
-      Number(
-        stockAgg?.[0]?.productCount || 0
-      ),
+    totalProducts,
 
+    totalStock,
+
+    // Existing compatibility field
     currentStockUnits:
-      Number(
-        stockAgg?.[0]?.totalCurrentStock || 0
-      ),
+      totalStock,
 
     lowStockProducts,
 
