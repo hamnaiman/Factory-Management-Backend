@@ -31,14 +31,22 @@ const app = express();
 app.use(cookieParser());
 app.use(morgan("dev"));
 
+// Filter out undefined/empty values so a missing env var can't
+// silently break CORS in production.
 const allowedOrigins = [
   "http://localhost:5173",
-  process.env.FRONTEND_URL
-];
+  process.env.FRONTEND_URL,
+].filter(Boolean);
 
 app.use(
   cors({
-    origin: allowedOrigins,
+    origin: function (origin, callback) {
+      // allow non-browser tools (curl/postman) with no origin header
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error("Not allowed by CORS"));
+    },
     credentials: true,
   })
 );
@@ -72,7 +80,6 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/vendors", vendorRoutes);
 app.use("/api/purchases", purchaseRoutes);
 app.use("/api/expenses", expenseRoutes);
-
 
 // Error Middleware (Must be last)
 app.use(errorMiddleware);
