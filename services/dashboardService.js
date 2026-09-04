@@ -124,9 +124,13 @@ const getDashboardData = async (filters = {}) => {
 
   // ==========================================================
   // EXPENSE FILTER
+  // Labour payment expenses are excluded from every expense
+  // total shown on the dashboard (they have their own report).
   // ==========================================================
 
   const expenseMatch = {
+    sourceType: { $ne: "LabourPayment" },
+
     $or: [
       { isDeleted: false },
       { isDeleted: { $exists: false } },
@@ -150,6 +154,8 @@ const getDashboardData = async (filters = {}) => {
   // ==========================================================
 
   const todayExpenseMatch = {
+    sourceType: { $ne: "LabourPayment" },
+
     date: {
       $gte: todayStart,
       $lte: todayEnd,
@@ -166,6 +172,8 @@ const getDashboardData = async (filters = {}) => {
   // ==========================================================
 
   const monthlyExpenseMatch = {
+    sourceType: { $ne: "LabourPayment" },
+
     date: {
       $gte: monthStart,
       $lte: monthEnd,
@@ -348,7 +356,7 @@ const getDashboardData = async (filters = {}) => {
     ]),
 
     // ========================================================
-    // TOTAL EXPENSES
+    // TOTAL EXPENSES (Labour excluded)
     // ========================================================
 
     Expense.aggregate([
@@ -392,7 +400,7 @@ const getDashboardData = async (filters = {}) => {
     ]),
 
     // ========================================================
-    // TODAY EXPENSES
+    // TODAY EXPENSES (Labour excluded)
     // ========================================================
 
     Expense.aggregate([
@@ -442,7 +450,7 @@ const getDashboardData = async (filters = {}) => {
     ]),
 
     // ========================================================
-    // MONTHLY EXPENSES
+    // MONTHLY EXPENSES (Labour excluded)
     // ========================================================
 
     Expense.aggregate([

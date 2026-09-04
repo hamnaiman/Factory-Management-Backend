@@ -146,12 +146,35 @@ const deleteLabourExpense = async (paymentId) => {
 };
 
 // ============================================================
-// GET ALL EXPENSES
+// SHARED: BUILD DATE FILTER (used by list + total queries)
+// ============================================================
+
+const buildDateFilter = (query = {}) => {
+  const dateFilter = {};
+
+  if (query.fromDate) {
+    const fromDate = new Date(query.fromDate);
+    fromDate.setHours(0, 0, 0, 0);
+    dateFilter.$gte = fromDate;
+  }
+
+  if (query.toDate) {
+    const toDate = new Date(query.toDate);
+    toDate.setHours(23, 59, 59, 999);
+    dateFilter.$lte = toDate;
+  }
+
+  return dateFilter;
+};
+
+// ============================================================
+// GET ALL EXPENSES (Labour payments excluded — normal page)
 // ============================================================
 
 const getExpenses = async (query = {}) => {
   const filter = {
     isDeleted: false,
+    sourceType: { $ne: "LabourPayment" }, // labour ko is list se bahar rakho
   };
 
   // Category
@@ -161,21 +184,7 @@ const getExpenses = async (query = {}) => {
 
   // Date
   if (query.fromDate || query.toDate) {
-    filter.date = {};
-
-    if (query.fromDate) {
-      const fromDate = new Date(query.fromDate);
-      fromDate.setHours(0, 0, 0, 0);
-
-      filter.date.$gte = fromDate;
-    }
-
-    if (query.toDate) {
-      const toDate = new Date(query.toDate);
-      toDate.setHours(23, 59, 59, 999);
-
-      filter.date.$lte = toDate;
-    }
+    filter.date = buildDateFilter(query);
   }
 
   // Search
@@ -299,12 +308,13 @@ const deleteExpense = async (id) => {
 };
 
 // ============================================================
-// TOTAL EXPENSES
+// TOTAL EXPENSES (system-wide card — Labour excluded)
 // ============================================================
 
 const getExpenseTotal = async (query = {}) => {
   const filter = {
     isDeleted: false,
+    sourceType: { $ne: "LabourPayment" }, // labour ka amount is total mein shamil nahi hoga
   };
 
   // Category
@@ -314,21 +324,7 @@ const getExpenseTotal = async (query = {}) => {
 
   // Date
   if (query.fromDate || query.toDate) {
-    filter.date = {};
-
-    if (query.fromDate) {
-      const fromDate = new Date(query.fromDate);
-      fromDate.setHours(0, 0, 0, 0);
-
-      filter.date.$gte = fromDate;
-    }
-
-    if (query.toDate) {
-      const toDate = new Date(query.toDate);
-      toDate.setHours(23, 59, 59, 999);
-
-      filter.date.$lte = toDate;
-    }
+    filter.date = buildDateFilter(query);
   }
 
   const result = await Expense.aggregate([
@@ -356,6 +352,89 @@ const getExpenseTotal = async (query = {}) => {
   };
 };
 
+// ============================================================
+// GET LABOUR EXPENSES ONLY (for the separate "Labour" tab)
+// ============================================================
+
+const getLabourExpenses = async (query = {}) => {
+  const filter = {
+    isDeleted: false,
+    sourceType: "LabourPayment",
+  };
+
+  // Date (month-wise ya kisi bhi range ke liye)
+  if (query.fromDate || query.toDate) {
+    filter.date = buildDateFilter(query);
+  }
+
+  // Search (worker name wagera title mein hi hota hai)
+  if (query.keyword || query.search) {
+    const search = query.keyword || query.search;
+
+    filter.$or = [
+      {
+        title: {
+          $regex: search,
+          $options: "i",
+        },
+      },
+      {
+        notes: {
+          $regex: search,
+          $options: "i",
+        },
+      },
+    ];
+  }
+
+  return await Expense.find(filter)
+    .populate("createdBy", "name email")
+    .sort({
+      date: -1,
+      createdAt: -1,
+    });
+};
+
+// ============================================================
+// TOTAL LABOUR EXPENSES (for the separate "Labour" tab card)
+// ============================================================
+
+const getLabourExpenseTotal = async (query = {}) => {
+  const filter = {
+    isDeleted: false,
+    sourceType: "LabourPayment",
+  };
+
+  // Date (month-wise ya kisi bhi range ke liye)
+  if (query.fromDate || query.toDate) {
+    filter.date = buildDateFilter(query);
+  }
+
+  const result = await Expense.aggregate([
+    {
+      $match: filter,
+    },
+    {
+      $group: {
+        _id: null,
+
+        totalLabourExpenses: {
+          $sum: {
+            $ifNull: ["$amount", 0],
+          },
+        },
+      },
+    },
+  ]);
+
+  return {
+    totalLabourExpenses:
+      result.length > 0
+        ? Number(result[0].totalLabourExpenses)
+        : 0,
+  };
+};
+
 module.exports = {
   addExpense,
   createLabourExpense,
@@ -367,4 +446,7 @@ module.exports = {
   updateExpense,
   deleteExpense,
   getExpenseTotal,
+
+  getLabourExpenses,
+  getLabourExpenseTotal,
 };

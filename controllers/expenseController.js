@@ -1,4 +1,3 @@
-
 const {
   addExpense,
   getExpenses,
@@ -6,6 +5,8 @@ const {
   updateExpense,
   deleteExpense,
   getExpenseTotal,
+  getLabourExpenses,
+  getLabourExpenseTotal,
 } = require("../services/expenseService");
 
 const ApiResponse = require("../utils/apiResponse");
@@ -124,7 +125,7 @@ const removeExpense = async (req, res, next) => {
 };
 
 // ============================================================
-// TOTAL
+// TOTAL (Labour excluded — system-wide expense card)
 // ============================================================
 
 const getTotalExpenses = async (req, res, next) => {
@@ -144,6 +145,48 @@ const getTotalExpenses = async (req, res, next) => {
   }
 };
 
+// ============================================================
+// LABOUR — GET ALL (separate tab)
+// ============================================================
+
+const getAllLabourExpenses = async (req, res, next) => {
+  try {
+    const expenses = await getLabourExpenses(req.query);
+
+    res.status(200).json(
+      new ApiResponse(
+        200,
+        true,
+        "Labour expenses fetched successfully",
+        expenses
+      )
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ============================================================
+// LABOUR — TOTAL (separate tab card, date filterable)
+// ============================================================
+
+const getLabourExpensesTotal = async (req, res, next) => {
+  try {
+    const total = await getLabourExpenseTotal(req.query);
+
+    res.status(200).json(
+      new ApiResponse(
+        200,
+        true,
+        "Labour expense total fetched successfully",
+        total
+      )
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   createExpense,
   getAllExpenses,
@@ -151,4 +194,7 @@ module.exports = {
   editExpense,
   removeExpense,
   getTotalExpenses,
+
+  getAllLabourExpenses,
+  getLabourExpensesTotal,
 };

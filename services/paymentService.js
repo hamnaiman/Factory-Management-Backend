@@ -20,6 +20,7 @@ const addPayment = async (data, userId) => {
     paymentMethod = "Cash",
     paymentType = "Salary",
     remark,
+    paymentProof,
   } = data;
 
   if (!worker) {
@@ -50,6 +51,13 @@ const addPayment = async (data, userId) => {
     paymentMethod,
     paymentType,
     remark,
+
+    // Optional Cloudinary payment screenshot
+    paymentProof: paymentProof || {
+      url: "",
+      publicId: "",
+    },
+
     paidBy: userId,
   });
 
@@ -78,7 +86,6 @@ const addPayment = async (data, userId) => {
     .populate("worker")
     .populate("paidBy", "name email");
 };
-
 // ============================================================
 // GET ALL PAYMENTS
 // ============================================================
@@ -147,40 +154,42 @@ const updatePayment = async (id, data) => {
   // ----------------------------------------------------------
 
   const updatedPayment =
-    await Payment.findByIdAndUpdate(
-      id,
-      {
-        ...(data.worker !== undefined && {
-          worker: data.worker,
-        }),
+  await Payment.findByIdAndUpdate(
+    id,
+    {
+      ...(data.worker !== undefined && {
+        worker: data.worker,
+      }),
 
-        ...(data.amount !== undefined && {
-          amount: Number(data.amount),
-        }),
+      ...(data.amount !== undefined && {
+        amount: Number(data.amount),
+      }),
 
-        ...(data.paymentDate !== undefined && {
-          paymentDate: data.paymentDate,
-        }),
+      ...(data.paymentDate !== undefined && {
+        paymentDate: data.paymentDate,
+      }),
 
-        ...(data.paymentMethod !== undefined && {
-          paymentMethod: data.paymentMethod,
-        }),
+      ...(data.paymentMethod !== undefined && {
+        paymentMethod: data.paymentMethod,
+      }),
 
-        ...(data.paymentType !== undefined && {
-          paymentType: data.paymentType,
-        }),
+      ...(data.paymentType !== undefined && {
+        paymentType: data.paymentType,
+      }),
 
-        ...(data.remark !== undefined && {
-          remark: data.remark,
-        }),
-      },
-      {
-        new: true,
-        runValidators: true,
-      }
-    )
-      .populate("worker")
-      .populate("paidBy", "name email");
+      ...(data.remark !== undefined && {
+        remark: data.remark,
+      }),
+
+      ...(data.paymentProof !== undefined && {
+        paymentProof: data.paymentProof,
+      }),
+    },
+    {
+      new: true,
+      runValidators: true,
+    }
+  )
 
   // ----------------------------------------------------------
   // Sync related Labour Expense

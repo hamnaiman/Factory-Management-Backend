@@ -31,10 +31,23 @@ const paymentSchema = new mongoose.Schema(
       default: "Salary",
     },
 
+
     remark: {
       type: String,
       trim: true,
     },
+
+
+paymentProof: {
+  url: {
+    type: String,
+    default: "",
+  },
+  publicId: {
+    type: String,
+    default: "",
+  },
+},
 
     paidBy: {
       type: mongoose.Schema.Types.ObjectId,
