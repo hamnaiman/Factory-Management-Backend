@@ -10,6 +10,11 @@ const createLabour = async (data) => {
     throw new ApiError(409, "Phone number already exists.");
   }
 
+  // CNIC optional
+  if (!data.cnic || data.cnic.trim() === "") {
+    delete data.cnic;
+  }
+
   return await Labour.create(data);
 };
 
@@ -20,14 +25,14 @@ const getAllLabours = async () => {
 };
 
 const updateLabour = async (id, data) => {
-  const labour = await Labour.findByIdAndUpdate(
-    id,
-    data,
-    {
-      new: true,
-      runValidators: true,
-    }
-  );
+  if (!data.cnic || data.cnic.trim() === "") {
+    delete data.cnic;
+  }
+
+  const labour = await Labour.findByIdAndUpdate(id, data, {
+    new: true,
+    runValidators: true,
+  });
 
   if (!labour) {
     throw new ApiError(404, "Worker not found");
