@@ -1,6 +1,7 @@
 const Labour = require("../models/Labour");
 const ApiError = require("../utils/apiError");
 
+// CREATE LABOUR
 const createLabour = async (data) => {
   const exists = await Labour.findOne({
     phone: data.phone,
@@ -17,7 +18,17 @@ const createLabour = async (data) => {
 
   return await Labour.create(data);
 };
+
+// GET ALL LABOURS
+const getAllLabours = async () => {
+  return await Labour.find().sort({
+    createdAt: -1,
+  });
+};
+
+// UPDATE LABOUR
 const updateLabour = async (id, data) => {
+  // CNIC empty ho to field remove kar do
   if (!data.cnic || data.cnic.trim() === "") {
     delete data.cnic;
   }
@@ -34,6 +45,7 @@ const updateLabour = async (id, data) => {
   return labour;
 };
 
+// DELETE LABOUR
 const deleteLabour = async (id) => {
   const labour = await Labour.findByIdAndDelete(id);
 
