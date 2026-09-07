@@ -12,12 +12,13 @@ const labourSchema = new mongoose.Schema(
       type: String,
       required: true,
       unique: true,
+      trim: true,
     },
 
     cnic: {
       type: String,
-      unique: true,
-      sparse: true,
+      trim: true,
+      default: null,
     },
 
     department: {
