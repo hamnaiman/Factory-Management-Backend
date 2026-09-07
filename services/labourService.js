@@ -10,20 +10,13 @@ const createLabour = async (data) => {
     throw new ApiError(409, "Phone number already exists.");
   }
 
-  // CNIC optional
+  // CNIC empty ho to field remove kar do
   if (!data.cnic || data.cnic.trim() === "") {
     delete data.cnic;
   }
 
   return await Labour.create(data);
 };
-
-const getAllLabours = async () => {
-  return await Labour.find().sort({
-    createdAt: -1,
-  });
-};
-
 const updateLabour = async (id, data) => {
   if (!data.cnic || data.cnic.trim() === "") {
     delete data.cnic;
