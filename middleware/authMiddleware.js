@@ -1,5 +1,7 @@
 const jwt = require("jsonwebtoken");
+
 const User = require("../models/User");
+
 const ApiError = require("../utils/apiError");
 
 const protect = async (req, res, next) => {
@@ -7,33 +9,85 @@ const protect = async (req, res, next) => {
     let token = null;
 
     // ============================================================
-    // READ TOKEN FROM COOKIE
+    // 1. PRIMARY AUTHENTICATION: HTTP-ONLY COOKIE
     // ============================================================
 
-    if (req.cookies && req.cookies.token) {
+    if (req.cookies?.token) {
       token = req.cookies.token;
     }
 
-    // Debug
-    console.log("========== AUTH CHECK ==========");
-    console.log("Cookies available:", !!req.cookies);
-    console.log("Token available:", !!token);
+    // ============================================================
+    // 2. FALLBACK: AUTHORIZATION HEADER
+    // ============================================================
 
     if (!token) {
-      console.log("❌ No authentication token found.");
+      const authHeader = req.headers.authorization;
+
+      if (
+        authHeader &&
+        authHeader.startsWith("Bearer ")
+      ) {
+        token = authHeader.substring(7);
+      }
+    }
+
+    // ============================================================
+    // AUTH DEBUG
+    // ============================================================
+
+    console.log("========== AUTH CHECK ==========");
+
+    console.log(
+      "Cookies available:",
+      !!req.cookies
+    );
+
+    console.log(
+      "Cookie token:",
+      !!req.cookies?.token
+    );
+
+    console.log(
+      "Authorization header:",
+      !!req.headers.authorization
+    );
+
+    console.log(
+      "Token available:",
+      !!token
+    );
+
+    // ============================================================
+    // NO TOKEN
+    // ============================================================
+
+    if (!token) {
+      console.log(
+        "❌ No authentication token found."
+      );
+
       return next(
-        new ApiError(401, "Unauthorized. Please login.")
+        new ApiError(
+          401,
+          "Unauthorized. Please login."
+        )
       );
     }
 
     // ============================================================
-    // JWT SECRET CHECK
+    // JWT SECRET
     // ============================================================
 
     if (!process.env.JWT_SECRET) {
-      console.error("❌ JWT_SECRET is missing from environment.");
+      console.error(
+        "❌ JWT_SECRET is missing from environment."
+      );
+
       return next(
-        new ApiError(500, "JWT configuration is missing.")
+        new ApiError(
+          500,
+          "JWT configuration is missing."
+        )
       );
     }
 
@@ -49,8 +103,10 @@ const protect = async (req, res, next) => {
         process.env.JWT_SECRET
       );
     } catch (jwtError) {
-      console.error("❌ JWT VERIFY ERROR:");
-      console.error(jwtError);
+      console.error(
+        "❌ JWT VERIFY ERROR:",
+        jwtError.message
+      );
 
       return next(
         new ApiError(
@@ -60,7 +116,10 @@ const protect = async (req, res, next) => {
       );
     }
 
-    console.log("✅ JWT decoded:", decoded);
+    console.log(
+      "✅ JWT decoded:",
+      decoded
+    );
 
     // ============================================================
     // FIND USER
@@ -76,7 +135,10 @@ const protect = async (req, res, next) => {
       );
 
       return next(
-        new ApiError(401, "User not found.")
+        new ApiError(
+          401,
+          "User not found."
+        )
       );
     }
 
@@ -88,15 +150,22 @@ const protect = async (req, res, next) => {
 
     console.log(
       "✅ Authenticated user:",
-      user.email || user.username || user._id
+      user.email ||
+        user.username ||
+        user._id
     );
 
-    console.log("================================");
+    console.log(
+      "================================"
+    );
 
-    next();
+    return next();
 
   } catch (error) {
-    console.error("❌ AUTH MIDDLEWARE ERROR:");
+    console.error(
+      "❌ AUTH MIDDLEWARE ERROR:"
+    );
+
     console.error(error);
 
     return next(

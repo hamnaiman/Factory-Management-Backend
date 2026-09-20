@@ -1,35 +1,51 @@
 // utils/cookieOptions.js
 
 /**
- * Centralized cookie options.
+ * Centralized authentication cookie configuration.
  *
- * IMPORTANT: `path` MUST be explicitly set to "/" here and used
- * consistently in every res.cookie() / res.clearCookie() call.
- * If you omit `path`, the browser defaults it to the directory of
- * the request URL that set the cookie (e.g. "/api/auth" for a
- * login route), NOT "/". That causes the cookie to be invisible to
- * other routes, and causes duplicate stale "token" cookies to pile
- * up with different paths — which is exactly what was causing the
- * "old token" / random 401 Unauthorized issue.
+ * Production:
+ * - Frontend: Vercel / HTTPS
+ * - Backend: Render / HTTPS
+ * - Cross-site cookie: SameSite=None
+ * - Secure cookie: true
+ *
+ * Development:
+ * - Same-site/local HTTP development
+ * - SameSite=Lax
+ * - Secure=false
+ *
+ * IMPORTANT:
+ * Always keep path: "/" so the authentication cookie
+ * is available to every API route.
  */
 
 const isProduction = process.env.NODE_ENV === "production";
 
 const baseCookieOptions = {
   httpOnly: true,
-  secure: isProduction,     // true in prod (HTTPS), false in local http dev
-  sameSite: isProduction ? "none" : "lax", // "none" only works with secure:true (HTTPS)
-  path: "/",                 // <-- THE FIX: must be identical everywhere
+
+  // Render production runs over HTTPS.
+  secure: isProduction,
+
+  // Required for Vercel -> Render cross-site cookie usage.
+  sameSite: isProduction ? "none" : "lax",
+
+  // Authentication cookie must be available to all API routes.
+  path: "/",
 };
 
 const loginCookieOptions = {
   ...baseCookieOptions,
-  maxAge: 24 * 60 * 60 * 1000, // 24h — should match JWT expiresIn
+
+  // Keep this synchronized with JWT expiration.
+  maxAge: 24 * 60 * 60 * 1000,
 };
 
 const clearCookieOptions = {
   ...baseCookieOptions,
-  // maxAge/expires not needed for clearCookie
+
+  // Explicitly remove any existing cookie.
+  maxAge: 0,
 };
 
 module.exports = {
